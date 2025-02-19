@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { supabase } from './supabaseClient'
 
 export default function Auth() {
-  const [loading, setLoading] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   const handleAuth = async (e) => {
     e.preventDefault()
@@ -18,7 +18,6 @@ export default function Auth() {
           password,
         })
         if (error) throw error
-        // No need to refresh - the Supabase client will automatically update the session
       } else {
         const { error } = await supabase.auth.signUp({
           email,

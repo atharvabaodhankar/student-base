@@ -10,11 +10,41 @@ function App() {
   const [marks, setMarks] = useState('')
   const [image, setImage] = useState(null)
 
+  const fetchStudents = async () => {
+    if (!session?.user) return;
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('user_id', session.user.id)
+    
+    if (error) console.error('Error fetching students:', error)
+    else setStudents(data)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut({
+        scope: 'local'
+      })
+      
+      // Clear local state
+      setSession(null)
+      setStudents([])
+      setName('')
+      setMarks('')
+      setImage(null)
+      
+    } catch (error) {
+      console.error('Error logging out:', error.message)
+    }
+  }
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) fetchStudents()
+      if (session?.user) fetchStudents()
     })
 
     // Listen for auth changes
@@ -22,18 +52,20 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) fetchStudents()
+      if (session?.user) {
+        fetchStudents()
+      } else {
+        // Clear data when logged out
+        setStudents([])
+        setName('')
+        setMarks('')
+        setImage(null)
+      }
     })
 
     // Cleanup subscription on unmount
     return () => subscription.unsubscribe()
   }, [])
-
-  const fetchStudents = async () => {
-    const { data, error } = await supabase.from('students').select('*')
-    if (error) console.error('Error fetching students:', error)
-    else setStudents(data)
-  }
 
   const addStudent = async () => {
     try {
@@ -41,7 +73,7 @@ function App() {
       
       if (image) {
         const fileExt = image.name.split('.').pop()
-        const fileName = `${Math.random()}.${fileExt}`
+        const fileName = `${session.user.id}/${Math.random()}.${fileExt}`
         
         const { data: imageData, error: imageError } = await supabase.storage
           .from('student-image')
@@ -61,7 +93,8 @@ function App() {
         .insert([{ 
           name, 
           marks,
-          image_url: imageUrl
+          image_url: imageUrl,
+          user_id: session.user.id
         }])
         .select()
 
@@ -77,14 +110,14 @@ function App() {
   }
 
   const deleteStudent = async (id) => {
-    const { error } = await supabase.from('students').delete().eq('id', id)
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', session.user.id)
+    
     if (error) console.error('Error deleting student:', error)
     else setStudents(students.filter((student) => student.id !== id))
-  }
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) console.error('Error logging out:', error)
   }
 
   if (!session) {
@@ -96,12 +129,14 @@ function App() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Students List</h1>
-          <button
-            onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            Logout
-          </button>
+          {session?.user && ( // Only show logout button if user is authenticated
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              Logout
+            </button>
+          )}
         </div>
         
         <div className="bg-white rounded-lg shadow p-6 mb-8">
