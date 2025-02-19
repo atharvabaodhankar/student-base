@@ -11,9 +11,10 @@ function App() {
   const [image, setImage] = useState(null)
 
   useEffect(() => {
-    // Check for active session
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      if (session) fetchStudents()
     })
 
     // Listen for auth changes
@@ -21,13 +22,11 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
+      if (session) fetchStudents()
     })
 
+    // Cleanup subscription on unmount
     return () => subscription.unsubscribe()
-  }, [])
-
-  useEffect(() => {
-    fetchStudents()
   }, [])
 
   const fetchStudents = async () => {

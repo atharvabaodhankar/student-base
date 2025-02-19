@@ -11,14 +11,14 @@ export default function Auth() {
     e.preventDefault()
     try {
       setLoading(true)
-      await supabase.auth.signOut()
-
+      
       if (!isSignUp) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
         if (error) throw error
+        // No need to refresh - the Supabase client will automatically update the session
       } else {
         const { error } = await supabase.auth.signUp({
           email,
