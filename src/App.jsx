@@ -13,13 +13,21 @@ function App() {
   const fetchStudents = async () => {
     if (!session?.user) return;
 
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .eq('user_id', session.user.id)
-    
-    if (error) console.error('Error fetching students:', error)
-    else setStudents(data)
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        throw error;
+      }
+      
+      setStudents(data || [])
+    } catch (error) {
+      console.error('Error fetching students:', error)
+    }
   }
 
   const handleLogout = async () => {
@@ -44,18 +52,19 @@ function App() {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session?.user) fetchStudents()
+      if (session?.user) {
+        fetchStudents() // Fetch when session is available
+      }
     })
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session)
       if (session?.user) {
-        fetchStudents()
+        await fetchStudents() // Fetch when auth state changes
       } else {
-        // Clear data when logged out
         setStudents([])
         setName('')
         setMarks('')
@@ -63,12 +72,24 @@ function App() {
       }
     })
 
-    // Cleanup subscription on unmount
     return () => subscription.unsubscribe()
-  }, [])
+  }, []) // Remove fetchStudents from dependency array
+
+  // Add a separate useEffect to watch for session changes
+  useEffect(() => {
+    if (session?.user) {
+      fetchStudents()
+    }
+  }, [session]) // This will run whenever session changes
 
   const addStudent = async () => {
     try {
+      // Validate marks input
+      const numericMarks = Number(marks)
+      if (isNaN(numericMarks)) {
+        throw new Error('Marks must be a valid number')
+      }
+
       let imageUrl = null
       
       if (image) {
@@ -88,23 +109,26 @@ function App() {
         imageUrl = publicUrl
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('students')
         .insert([{ 
           name, 
-          marks,
+          marks: numericMarks,
           image_url: imageUrl,
           user_id: session.user.id
         }])
-        .select()
 
       if (error) throw error
 
-      setStudents([...students, data[0]])
+      // Fetch fresh data instead of manually updating state
+      await fetchStudents()
+      
+      // Clear form
       setName('')
       setMarks('')
       setImage(null)
     } catch (error) {
+      alert(error.message)
       console.error('Error adding student:', error.message)
     }
   }
