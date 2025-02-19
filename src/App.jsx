@@ -134,14 +134,43 @@ function App() {
   }
 
   const deleteStudent = async (id) => {
-    const { error } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', session.user.id)
-    
-    if (error) console.error('Error deleting student:', error)
-    else setStudents(students.filter((student) => student.id !== id))
+    try {
+      // First get the student to find the image URL
+      const { data: student, error: fetchError } = await supabase
+        .from('students')
+        .select('image_url')
+        .eq('id', id)
+        .eq('user_id', session.user.id)
+        .single()
+      
+      if (fetchError) throw fetchError
+
+      // If there's an image, delete it from storage
+      if (student?.image_url) {
+        const imagePath = student.image_url.split('/').slice(-2).join('/') // Get path like: 'user_id/filename.ext'
+        const { error: storageError } = await supabase.storage
+          .from('student-image')
+          .remove([imagePath])
+        
+        if (storageError) throw storageError
+      }
+
+      // Then delete the student record
+      const { error: deleteError } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', session.user.id)
+      
+      if (deleteError) throw deleteError
+
+      // Update the local state
+      setStudents(students.filter((student) => student.id !== id))
+      
+    } catch (error) {
+      console.error('Error deleting student:', error.message)
+      alert('Error deleting student: ' + error.message)
+    }
   }
 
   if (!session) {
